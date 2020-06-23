@@ -26,6 +26,8 @@ func main() {
 	if err != nil {
 		log.Println("Error getting Twitter Client")
 		log.Println(err)
+	} else {
+		fmt.Println("Successfully Connected to Twitter.")
 	}
 
 	// Prints the pointer to the client
