@@ -51,8 +51,7 @@ func main() {
 	c.AddFunc("@daily", func() {
 		tweet.SendTweet(m[count], client)
 
-		// Prints the tweet than deletes it from memory
-		fmt.Println(m[count])
+		// Deletes the joke text from memory
 		delete(m, count)
 		count++
 	})

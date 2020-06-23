@@ -88,10 +88,9 @@ func PrintMemUsage() {
 // SendTweet will take in client info and a string
 // It will then send a tweet to twitter.
 func SendTweet(text string, clientTwitter *twitter.Client) {
-	tweet, resp, err := clientTwitter.Statuses.Update(text, nil)
+	tweet, _, err := clientTwitter.Statuses.Update(text, nil)
 	if err != nil {
 		log.Println(err)
 	}
-	log.Printf("%+v\n", resp)
 	log.Printf("%+v\n", tweet)
 }
