@@ -1,14 +1,18 @@
 package tweet
 
 import (
-	"bufio"
+	"context"
 	"fmt"
 	"log"
-	"os"
-	"runtime"
+	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 // Credentials holds the key info for the twitter API
@@ -17,6 +21,13 @@ type Credentials struct {
 	ConsumerSecret    string
 	AccessToken       string
 	AccessTokenSecret string
+}
+
+// Joke is a struct of a mongodb joke doc formated accordingly
+type Joke struct {
+	ID   primitive.ObjectID `bson:"_id,omitempty"`
+	Body string             `bson:"body,omitempty"`
+	Used bool               `bson:"used"`
 }
 
 // GetClient is a helper function that will return a twitter client
@@ -50,47 +61,47 @@ func GetClient(creds *Credentials) (*twitter.Client, error) {
 	return client, nil
 }
 
-// ScanByLine will scan a text file and read in the line by line
-func ScanByLine(fileName string) []string {
-	f, err := os.Open(fileName)
-	if err != nil {
-		fmt.Println("Failed to open the file!\nClosing the program.")
-		os.Exit(0)
-	}
-	// Create new Scanner.
-	scanner := bufio.NewScanner(f)
-	result := []string{}
-	// Use Scan.
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Append line to result.
-		result = append(result, line)
-	}
-	return result
-}
-
-func bToMb(b uint64) uint64 {
-	return b / 1024 / 1024
-}
-
-// PrintMemUsage outputs the current, total and OS memory being used. As well as the number
-// of garage collection cycles completed.
-func PrintMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v MiB", bToMb(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
-	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-}
-
 // SendTweet will take in client info and a string
 // It will then send a tweet to twitter.
-func SendTweet(text string, clientTwitter *twitter.Client) {
-	tweet, _, err := clientTwitter.Statuses.Update(text, nil)
+func SendTweet(j Joke, clientTwitter *twitter.Client) {
+	tweet, _, err := clientTwitter.Statuses.Update(j.Body, nil)
 	if err != nil {
 		log.Println(err)
 	}
 	log.Printf("%+v\n", tweet)
+}
+
+// QueryJokeFromDB will connect to a mongoDB atlas cluster
+// then it will query and unused joke and return it
+// this joke is then updated in the DB with the used field set to true
+func QueryJokeFromDB(URI string) (Joke, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(URI))
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = client.Ping(ctx, readpref.Primary())
+	if err != nil {
+		fmt.Println("Failed to ping Atlas cluster")
+		log.Fatal(err)
+	}
+
+	collection := client.Database("Jokes").Collection("Jokes") // Working directory
+
+	var j Joke
+
+	if err = collection.FindOne(ctx, bson.M{"used": false}).Decode(&j); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(j)
+	j.Used = true
+	if err = collection.FindOneAndReplace(ctx, bson.M{"_id": j.ID}, j).Decode(&j); err != nil {
+		log.Fatal(err)
+	} else {
+		fmt.Println("Successfully writen")
+	}
+
+	return j, nil
 }

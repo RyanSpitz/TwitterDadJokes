@@ -33,29 +33,18 @@ func main() {
 	// Prints the pointer to the client
 	fmt.Printf("%+v\n", client)
 
-	jokesFile := "internal/jokes.txt"
+	uri := os.Getenv("MONGODB_URI")
 
-	fmt.Println("Attepting to read jokes into memory...")
-	var m map[int]string
-	m = make(map[int]string)
-
-	// Loop over lines in file.
-	for index, line := range tweet.ScanByLine(jokesFile) {
-		m[index] = line
-	}
-
-	fmt.Println("Success")
-
-	// current map key
-	count := 0
-
+	// The cron job
 	c := cron.New()
 	c.AddFunc("@daily", func() {
-		tweet.SendTweet(m[count], client)
-
-		// Deletes the joke text from memory
-		delete(m, count)
-		count++
+		// Gets joke doc from mongoDB atlas cluster
+		j, err := tweet.QueryJokeFromDB(uri)
+		if err != nil {
+			log.Println("Error getting Query")
+			log.Println(err)
+		}
+		tweet.SendTweet(j, client)
 	})
 
 	c.Start()
