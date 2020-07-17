@@ -35,7 +35,7 @@ func main() {
 
 	uri := os.Getenv("MONGODB_URI")
 
-	// The cron job
+	// The cron job that tweets out once daily
 	c := cron.New()
 	c.AddFunc("@daily", func() {
 		// Gets joke doc from mongoDB atlas cluster
